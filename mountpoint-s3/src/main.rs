@@ -134,6 +134,9 @@ struct CliArgs {
     #[clap(long, help = "Set the 'x-amz-request-payer' to 'requester' on S3 requests", help_heading = BUCKET_OPTIONS_HEADER)]
     pub requester_pays: bool,
 
+    #[clap(long, help = "Mount the filesystem in read-only mode", help_heading = MOUNT_OPTIONS_HEADER, action = clap::ArgAction::Set, default_value_t = true)]
+    pub read_only: bool,
+
     #[clap(long, help = "Automatically unmount on exit", help_heading = MOUNT_OPTIONS_HEADER)]
     pub auto_unmount: bool,
 
@@ -426,12 +429,13 @@ fn mount(args: CliArgs) -> anyhow::Result<FuseSession> {
 
     let fs_name = String::from("mountpoint-s3");
     let mut options = vec![
-        #[cfg(not(feature = "put"))]
-        MountOption::RO,
         MountOption::DefaultPermissions,
         MountOption::FSName(fs_name),
         MountOption::NoAtime,
     ];
+    if args.read_only {
+        options.push(MountOption::RO);
+    }
     if args.auto_unmount {
         options.push(MountOption::AutoUnmount);
     }
