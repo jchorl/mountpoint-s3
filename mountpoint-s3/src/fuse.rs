@@ -3,13 +3,14 @@
 use futures::executor::block_on;
 use futures::task::Spawn;
 use std::ffi::OsStr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tracing::{instrument, Instrument};
 
 use crate::fs::{DirectoryReplier, InodeNo, ReadReplier, S3Filesystem, S3FilesystemConfig};
 use crate::prefix::Prefix;
 use fuser::{
     FileAttr, Filesystem, KernelConfig, ReplyAttr, ReplyData, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyWrite, Request,
+    TimeOrNow,
 };
 use mountpoint_s3_client::ObjectClient;
 
@@ -279,6 +280,33 @@ where
     fn unlink(&self, _req: &Request<'_>, parent: InodeNo, name: &OsStr, reply: ReplyEmpty) {
         match block_on(self.fs.unlink(parent, name).in_current_span()) {
             Ok(()) => reply.ok(),
+            Err(e) => reply.error(e),
+        }
+    }
+
+    #[instrument(level="debug", skip_all, fields(req=_req.unique(), ino=ino))]
+    fn setattr(
+        &self,
+        _req: &Request<'_>,
+        ino: u64,
+        mode: Option<u32>,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        size: Option<u64>,
+        _atime: Option<TimeOrNow>,
+        _mtime: Option<TimeOrNow>,
+        _ctime: Option<SystemTime>,
+        fh: Option<u64>,
+        _crtime: Option<SystemTime>,
+        _chgtime: Option<SystemTime>,
+        _bkuptime: Option<SystemTime>,
+        flags: Option<u32>,
+        reply: ReplyAttr,
+    ) {
+        // TODO implement this (or not)
+        // touch requires it.
+        match block_on(self.fs.getattr(ino).in_current_span()) {
+            Ok(attr) => reply.attr(&attr.ttl, &attr.attr),
             Err(e) => reply.error(e),
         }
     }
